@@ -9,7 +9,9 @@ use sea_orm::{
     ActiveValue::Set,
 };
 use clap::Parser;
-use actix_web::{guard, web, App, HttpServer};
+use actix_web::{guard, web, App, HttpServer, HttpResponse};
+use async_graphql::{extensions, Object, EmptyMutation, EmptySubscription, Schema, http::{playground_source, GraphQLPlaygroundConfig}};
+use async_graphql_actix_web::GraphQL;
 
 mod entity;
 
@@ -28,8 +30,20 @@ enum SubCommand {
     HttpServer { port: u16 },
 }
 
+#[derive(Debug)]
+struct QueryRoot;
+
+#[Object]
+impl QueryRoot {
+    async fn hello(&self) -> &'static str {
+        "Hello, graphql!"
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    env_logger::init();
+
     let args = Args::parse();
     match args.subcmd {
         SubCommand::PrepareDummyData => {
@@ -47,8 +61,14 @@ async fn main() -> Result<()> {
         },
         SubCommand::HttpServer { port } => {
             HttpServer::new(|| {
-                            App::new()
-                                .service(web::resource("/").guard(guard::Get()).to(hello))
+                let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+                    .extension(extensions::Logger)
+                    .finish();
+
+                App::new()
+                    .service(web::resource("/").guard(guard::Get()).to(hello))
+                    .service(web::resource("/graphql").guard(guard::Post()).to(GraphQL::new(schema)))
+                    .service(web::resource("/playground").guard(guard::Get()).to(graphql_playgound))
             }).bind(("127.0.0.1", port))?.run().await?;
         },
     }
@@ -58,6 +78,12 @@ async fn main() -> Result<()> {
 
 async fn hello() -> &'static str {
     "Hello, world!"
+}
+
+async fn graphql_playgound() -> HttpResponse {
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body(playground_source(GraphQLPlaygroundConfig::new("/graphql")))
 }
 
 async fn prepare_dummy_data(trx: &DatabaseTransaction) -> Result<()> {

@@ -8,7 +8,10 @@ edition = "2021"
 [dependencies]
 actix-web = "4.5.1"
 anyhow = "1.0.81"
+async-graphql = { version = "7.0.3", features = ["log"] }
+async-graphql-actix-web = "7.0.3"
 clap = { version = "4.5.4", features = ["derive"] }
+env_logger = "0.11.3"
 futures = "0.3.30"
 sea-orm = { version = "0.12.15", features = ["runtime-tokio-rustls", "sqlx-sqlite", "macros"] }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
