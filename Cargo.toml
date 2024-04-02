@@ -1,0 +1,14 @@
+[package]
+name = "learning_graphql"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.5.1"
+anyhow = "1.0.81"
+clap = { version = "4.5.4", features = ["derive"] }
+futures = "0.3.30"
+sea-orm = { version = "0.12.15", features = ["runtime-tokio-rustls", "sqlx-sqlite", "macros"] }
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
