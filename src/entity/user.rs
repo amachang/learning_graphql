@@ -3,8 +3,9 @@
 use sea_orm::entity::prelude::*;
 use async_graphql::{SimpleObject, ComplexObject};
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, SimpleObject)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, DeriveEntityModel, Eq, SimpleObject)]
 #[sea_orm(table_name = "user")]
 #[graphql(complex, name = "User")]
 pub struct Model {
