@@ -10,14 +10,16 @@ use sea_orm::{
     ActiveValue::Set,
 };
 use clap::Parser;
-use actix_web::{guard, web, App, HttpServer, HttpResponse};
+use actix_session::SessionMiddleware;
+use actix_web::{guard, web, App, HttpServer, HttpResponse, cookie};
 use async_graphql::{extensions, Object, EmptyMutation, EmptySubscription, Schema, Context, http::{playground_source, GraphQLPlaygroundConfig}};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 
+mod session;
 mod entity;
 
-use entity::post;
-use entity::author;
+use entity::{post, author};
+use session::MemorySession;
 
 #[derive(Debug, Parser)]
 struct Args {
@@ -78,11 +80,20 @@ async fn main() -> Result<()> {
         },
         SubCommand::HttpServer { hostname, port } => {
             HttpServer::new(|| {
+
                 let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
                     .extension(extensions::Logger)
                     .finish();
 
                 App::new()
+                    .wrap(
+                        // Session middleware, just memory store for now, so key is also temporary
+                        SessionMiddleware::builder(MemorySession, cookie::Key::generate())
+                            .cookie_name("sess_id".to_string())
+                            .cookie_http_only(true)
+                            .cookie_secure(false)
+                            .build()
+                    )
                     .service(web::resource("/").guard(guard::Get()).to(hello))
                     .service(
                         web::resource("/graphql")
