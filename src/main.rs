@@ -28,7 +28,7 @@ struct Args {
 #[derive(Debug, Parser)]
 enum SubCommand {
     PrepareDummyData,
-    HttpServer { port: u16 },
+    HttpServer { hostname: String, port: u16 },
 }
 
 #[derive(Debug)]
@@ -76,7 +76,7 @@ async fn main() -> Result<()> {
                 }
             }
         },
-        SubCommand::HttpServer { port } => {
+        SubCommand::HttpServer { hostname, port } => {
             HttpServer::new(|| {
                 let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
                     .extension(extensions::Logger)
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
                             .guard(guard::Post()).to(handle_graphql)
                     )
                     .service(web::resource("/playground").guard(guard::Get()).to(graphql_playgound))
-            }).bind(("127.0.0.1", port))?.run().await?;
+            }).bind((hostname, port))?.run().await?;
         },
     }
 
