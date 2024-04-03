@@ -1,13 +1,11 @@
-use std::{collections::HashMap, sync::{Arc, Weak}};
+use std::sync::{Arc, Weak};
 use anyhow::{anyhow, Result};
 use sea_orm::{
     Database,
     ConnectOptions,
     DatabaseTransaction,
     TransactionTrait,
-    ActiveModelTrait,
     EntityTrait,
-    ActiveValue::Set,
 };
 use clap::Parser;
 use actix_session::SessionMiddleware;
@@ -18,7 +16,7 @@ use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 mod session;
 mod entity;
 
-use entity::{post, author};
+use entity::{post, user, passkey};
 use session::MemorySession;
 
 #[derive(Debug, Parser)]
@@ -29,7 +27,6 @@ struct Args {
 
 #[derive(Debug, Parser)]
 enum SubCommand {
-    PrepareDummyData,
     HttpServer { hostname: String, port: u16 },
 }
 
@@ -50,12 +47,20 @@ impl QueryRoot {
         Ok(posts)
     }
 
-    async fn authors(&self, ctx: &Context<'_>) -> Result<Vec<author::Model>> {
+    async fn users(&self, ctx: &Context<'_>) -> Result<Vec<user::Model>> {
         let trx = ctx.data::<Weak<DatabaseTransaction>>().map_err(|err| anyhow!("no transaction: {:?}", err))?
             .upgrade().ok_or_else(|| anyhow!("transaction is already dropped"))?;
 
-        let authors = author::Entity::find().all(trx.as_ref()).await?;
-        Ok(authors)
+        let users = user::Entity::find().all(trx.as_ref()).await?;
+        Ok(users)
+    }
+
+    async fn passkeys(&self, ctx: &Context<'_>) -> Result<Vec<passkey::Model>> {
+        let trx = ctx.data::<Weak<DatabaseTransaction>>().map_err(|err| anyhow!("no transaction: {:?}", err))?
+            .upgrade().ok_or_else(|| anyhow!("transaction is already dropped"))?;
+
+        let passkeys = passkey::Entity::find().all(trx.as_ref()).await?;
+        Ok(passkeys)
     }
 }
 
@@ -65,19 +70,6 @@ async fn main() -> Result<()> {
 
     let args = Args::parse();
     match args.subcmd {
-        SubCommand::PrepareDummyData => {
-            let opt = ConnectOptions::new("sqlite:db/main.db");
-            let conn = Database::connect(opt).await?;
-
-            let trx = conn.begin().await?;
-            match prepare_dummy_data(&trx).await {
-                Ok(_) => trx.commit().await?,
-                Err(e) => {
-                    trx.rollback().await?;
-                    return Err(e);
-                }
-            }
-        },
         SubCommand::HttpServer { hostname, port } => {
             HttpServer::new(|| {
 
@@ -150,40 +142,5 @@ async fn handle_graphql(schema: web::Data<Schema<QueryRoot, EmptyMutation, Empty
         Err(err) => return err_msg_to_res(err.to_string()).into(),
     }
     res.into()
-}
-
-async fn prepare_dummy_data(trx: &DatabaseTransaction) -> Result<()> {
-    let authors = vec![
-        "Alice", "Bob", "Carol", "Dave", "Eve",
-    ];
-    let posts = vec![
-        ("Hello", "Hello, world!", "Alice"),
-        ("SeaORM", "SeaORM is an async & dynamic ORM for Rust.", "Alice"),
-        ("Rust", "Rust is a systems programming language.", "Bob"),
-        ("SQLite", "SQLite is a C-language library that implements a small, fast, self-contained, high-reliability, full-featured, SQL database engine.", "Carol"),
-        ("PostgreSQL", "PostgreSQL is a powerful, open source object-relational database system.", "Dave"),
-        ("MySQL", "MySQL is an open-source relational database management system.", "Eve"),
-    ];
-
-    let mut name_author_map = HashMap::new();
-    for author in authors {
-        let author = author::ActiveModel {
-            name: Set(author.to_owned()),
-            ..Default::default()
-        };
-        let author = author.insert(trx).await?;
-        name_author_map.insert(author.name.clone(), author);
-    }
-    for (title, text, author) in posts {
-        let author = name_author_map.get(author).unwrap();
-        let post = post::ActiveModel {
-            author_id: Set(author.id),
-            title: Set(title.to_owned()),
-            text: Set(text.to_owned()),
-            ..Default::default()
-        };
-        post.insert(trx).await?;
-    }
-    Ok(())
 }
 

@@ -5,20 +5,17 @@ use async_graphql::{SimpleObject, ComplexObject};
 use chrono::NaiveDateTime;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, SimpleObject)]
-#[sea_orm(table_name = "post")]
-#[graphql(complex, name = "Post")]
+#[sea_orm(table_name = "user")]
+#[graphql(complex, name = "User")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[graphql(skip)]
     pub id: Uuid,
-    #[graphql(skip)]
-    pub user_id: Uuid,
     #[sea_orm(unique)]
     pub slug: Option<String>,
-    pub title: String,
-    pub content: String,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+    pub name: Option<String>,
+    pub comment: Option<String>,
+    pub registered_at: NaiveDateTime,
 }
 
 #[ComplexObject]
@@ -26,27 +23,25 @@ impl Model {
     pub async fn id(&self) -> String {
         self.id.to_string()
     }
-
-    pub async fn user_id(&self) -> String {
-        self.id.to_string()
-    }
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::user::Entity",
-        from = "Column::UserId",
-        to = "super::user::Column::Id",
-        on_update = "Restrict",
-        on_delete = "Restrict"
-    )]
-    User,
+    #[sea_orm(has_many = "super::passkey::Entity")]
+    Passkey,
+    #[sea_orm(has_many = "super::post::Entity")]
+    Post,
 }
 
-impl Related<super::user::Entity> for Entity {
+impl Related<super::passkey::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::User.def()
+        Relation::Passkey.def()
+    }
+}
+
+impl Related<super::post::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::Post.def()
     }
 }
 

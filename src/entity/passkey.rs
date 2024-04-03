@@ -2,33 +2,26 @@
 
 use sea_orm::entity::prelude::*;
 use async_graphql::{SimpleObject, ComplexObject};
-use chrono::NaiveDateTime;
+use serde_json::Value;
+use uuid::Uuid;
+use super::guard::OwnerGuard;
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, SimpleObject)]
-#[sea_orm(table_name = "post")]
-#[graphql(complex, name = "Post")]
+#[sea_orm(table_name = "passkey")]
+#[graphql(complex, name = "Passkey")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     #[graphql(skip)]
-    pub id: Uuid,
-    #[graphql(skip)]
     pub user_id: Uuid,
-    #[sea_orm(unique)]
-    pub slug: Option<String>,
-    pub title: String,
-    pub content: String,
-    pub created_at: NaiveDateTime,
-    pub updated_at: NaiveDateTime,
+
+    #[graphql(guard = "OwnerGuard::new(self.user_id)")]
+    pub content: Value,
 }
 
 #[ComplexObject]
 impl Model {
-    pub async fn id(&self) -> String {
-        self.id.to_string()
-    }
-
     pub async fn user_id(&self) -> String {
-        self.id.to_string()
+        self.user_id.to_string()
     }
 }
 
