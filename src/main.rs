@@ -110,10 +110,10 @@ async fn main() -> Result<()> {
                     .service(
                         web::scope("/auth")
                             .app_data(web::Data::new(webauthn))
-                            .service(web::resource("/start_register").guard(guard::Post()).to(auth::start_registration))
-                            .service(web::resource("/finish_register").guard(guard::Post()).to(auth::finish_registration))
-                            .service(web::resource("/start_auth").guard(guard::Post()).to(auth::start_authentication))
-                            .service(web::resource("/finish_auth").guard(guard::Post()).to(auth::finish_authentication))
+                            .service(web::resource("/register/start").guard(guard::Post()).to(auth::start_registration))
+                            .service(web::resource("/register/finish").guard(guard::Post()).to(auth::finish_registration))
+                            .service(web::resource("/auth/start").guard(guard::Post()).to(auth::start_authentication))
+                            .service(web::resource("/auth/finish").guard(guard::Post()).to(auth::finish_authentication))
                     )
                     .service(web::resource("/").guard(guard::Get()).to(hello))
                     .service(
