@@ -5,11 +5,12 @@ use sea_orm::prelude::*;
 use sea_orm::{
     DatabaseTransaction,
     TransactionTrait,
+    ActiveValue::Set,
 };
 use clap::Parser;
 use actix_session::{Session, SessionMiddleware};
 use actix_web::{guard, web, App, HttpServer, HttpResponse, cookie, ResponseError, http::StatusCode};
-use async_graphql::{extensions, Object, EmptyMutation, EmptySubscription, Schema, Context, http::{playground_source, GraphQLPlaygroundConfig}};
+use async_graphql::{extensions, Object, EmptySubscription, Schema, Context, http::{playground_source, GraphQLPlaygroundConfig}};
 use async_graphql_actix_web::{GraphQLRequest, GraphQLResponse};
 use webauthn_rs::prelude::WebauthnBuilder;
 
@@ -76,6 +77,31 @@ impl QueryRoot {
     }
 }
 
+#[derive(Debug)]
+struct Mutation;
+
+#[Object]
+impl Mutation {
+    async fn create_post(&self, ctx: &Context<'_>, title: String, content: String, slug: Option<String>) -> Result<post::Model> {
+        let Some(user) = ctx.data_opt::<user::Model>() else {
+            return Err(anyhow!("unauthenticated"));
+        };
+        let trx = trx_from_ctx(ctx)?;
+        let now = chrono::Utc::now().naive_utc();
+        let post = post::ActiveModel {
+            id: Set(Uuid::new_v4()),
+            user_id: Set(user.id),
+            slug: Set(slug),
+            title: Set(title),
+            content: Set(content),
+            created_at: Set(now),
+            updated_at: Set(now),
+        };
+        let post = post.insert(trx.as_ref()).await?;
+        Ok(post)
+    }
+}
+
 fn trx_from_ctx(ctx: &Context<'_>) -> Result<Arc<DatabaseTransaction>> {
     ctx.data::<Weak<DatabaseTransaction>>().map_err(|err| anyhow!("no transaction: {:?}", err))?
         .upgrade().ok_or_else(|| anyhow!("transaction is already dropped"))
@@ -94,7 +120,7 @@ async fn main() -> Result<()> {
                 let rp_origin = Url::parse(&format!("http://{}:{}", hostname_cloned, port)).expect("hostname and port must be valid");
                 let webauthn = WebauthnBuilder::new(&rp_id, &rp_origin).expect("correct webauthn origin is prerequisite").build();
 
-                let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+                let schema = Schema::build(QueryRoot, Mutation, EmptySubscription)
                     .extension(extensions::Logger)
                     .finish();
 
@@ -140,12 +166,12 @@ async fn graphql_playgound() -> HttpResponse {
         .body(playground_source(GraphQLPlaygroundConfig::new("/graphql")))
 }
 
-async fn handle_graphql(session: Session, schema: web::Data<Schema<QueryRoot, EmptyMutation, EmptySubscription>>, req: GraphQLRequest) -> Result<GraphQLResponse, Error> {
+async fn handle_graphql(session: Session, schema: web::Data<Schema<QueryRoot, Mutation, EmptySubscription>>, req: GraphQLRequest) -> Result<GraphQLResponse, Error> {
     let res = handle_graphql_anyhow_result(session, schema, req).await?;
     Ok(res)
 }
 
-async fn handle_graphql_anyhow_result(session: Session, schema: web::Data<Schema<QueryRoot, EmptyMutation, EmptySubscription>>, req: GraphQLRequest) -> Result<GraphQLResponse> {
+async fn handle_graphql_anyhow_result(session: Session, schema: web::Data<Schema<QueryRoot, Mutation, EmptySubscription>>, req: GraphQLRequest) -> Result<GraphQLResponse> {
     let req = req.into_inner();
 
     let req = if let Some(user) = session.get::<user::Model>("user")? {
